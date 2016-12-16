@@ -8,7 +8,7 @@ with open('README.md') as f:
 
 setup(
     name='Signal-processing utils',
-    version='0.1',
+    version='0.1.1',
     description='Signal processing utilities for Airgard-project',
     long_description=long_description,
     author='Rickard Sjögren',
