@@ -82,18 +82,18 @@ def fft_amplitude(signal, frame_rate, as_db=False):
     """
     N = len(signal)
     fft = np.fft.fft(signal)
-    frequencies = np.linspace(0, frame_rate, N // 2)
     amplitudes = 2 / N * np.abs(fft[:N // 2])
 
     if as_db:
         amplitudes = 10 * np.log10(amplitudes)
 
-    return amplitudes, frequencies
+    return amplitudes
 
 
 def process_airgard_df(df, spectral_transform=None,
                        spatial_transform=None, current_transform=None):
-    """
+    """ Process a single day of Airgard-data store as consecutive
+    dataframe.
 
     Parameters
     ----------
