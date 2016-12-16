@@ -134,7 +134,8 @@ def process_airgard_df(df, spectral_transform=None,
 
     for chunk in chunk_df_on_diff(df, 'Time', .003):
         if chunk is None:
-            processed.append([None for _ in range(n_transforms)])
+            processed.append([None, None, None])
+            continue
 
         spectrum = spectral_transform(chunk.Mic)
         if spectrum.ndim > 1:
@@ -144,13 +145,13 @@ def process_airgard_df(df, spectral_transform=None,
                    for transform in spatial_transform]
         current = [transform(chunk['Cur']) for transform in current_transform]
 
-        processed.append((spatial, current, spectrum))
+        processed.append((np.concatenate([np.array(s) for s in spatial]),
+                          current, spectrum))
 
-    cols = [c + t.__name__ for t in spatial_transform
-            for c in processed[0][0].index]
-    cols += [c + t.__name__ for t in current_transform
-             for c in processed[0][0].index]
-    cols += ['{}{}'.format(spatial_transform.__name__, i) for
+    cols = [c + '_' + t.__name__ for t in spatial_transform
+            for c in ['X', 'Y', 'Z']]
+    cols += ['Cur' + '_' + t.__name__ for t in current_transform]
+    cols += ['{}{}'.format(spectral_transform.__name__, i) for
              i, _ in enumerate(processed[0][2], start=1)]
 
     processed_arr = np.empty((len(processed), len(cols)),
@@ -161,8 +162,8 @@ def process_airgard_df(df, spectral_transform=None,
             processed_arr[i] = np.nan
             continue
 
-        processed_arr[i, :len(spatial)] = spatial.values
-        processed_arr[i, len(spatial):len(spatial) + len(current)] = current.values
+        processed_arr[i, :len(spatial)] = spatial
+        processed_arr[i, len(spatial):len(spatial) + len(current)] = current
         processed_arr[i, len(spatial) + len(current):] = spectrum
 
     processed_df = pd.DataFrame(processed_arr, columns=cols)
