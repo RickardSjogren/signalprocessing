@@ -76,9 +76,9 @@ def chunk_df_on_diff(df, column, cutoff):
         size = int(np.round(gap / median_gap))
 
         for _ in range(size - 1):
-            yield None
+            yield None, gap
 
         start = 0 if i == 0 else cuts[i - 1]
         chunk = df.iloc[start:end]
 
-        yield chunk
+        yield chunk, gap

@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import functools
+from datetime import timedelta
 from .misc import chunk_df_on_diff
 
 
@@ -90,7 +91,7 @@ def fft_amplitude(signal, frame_rate, as_db=False):
     return amplitudes
 
 
-def process_airgard_df(df, spectral_transform=None,
+def process_airgard_df(df, start_day, spectral_transform=None,
                        spatial_transform=None, current_transform=None):
     """ Process a single day of Airgard-data store as consecutive
     dataframe.
@@ -131,8 +132,12 @@ def process_airgard_df(df, spectral_transform=None,
 
     n_transforms = 1 + len(spatial_transform) + len(current_transform)
     processed = list()
-
-    for chunk in chunk_df_on_diff(df, 'Time', .003):
+    current_time = start_day
+    index = list()
+    for chunk, gap in chunk_df_on_diff(df, 'Time', .003):
+        delta = timedelta(seconds=gap)
+        current_time += delta
+        index.append(current_time)
         if chunk is None:
             processed.append([None, None, None])
             continue
@@ -166,7 +171,7 @@ def process_airgard_df(df, spectral_transform=None,
         processed_arr[i, len(spatial):len(spatial) + len(current)] = current
         processed_arr[i, len(spatial) + len(current):] = spectrum
 
-    processed_df = pd.DataFrame(processed_arr, columns=cols)
+    processed_df = pd.DataFrame(processed_arr, columns=cols, index=index)
     return processed_df
 
 
