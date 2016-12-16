@@ -58,6 +58,39 @@ def stfft_autopower(data, fft_size, overlap_fac=0.5, clip=None):
     return spectrogram
 
 
+def fft_amplitude(signal, frame_rate, as_db=False):
+    """ Perform FFT and return amplitude and frequencies.
+
+    Maximum frequency is `len(signal) // 2` according to
+    Shannon-Nyqvist sampling theorem.
+
+    Parameters
+    ----------
+    signal : array_like
+        1D-signal.
+    frame_rate : int, float
+        Number of frames per second.
+    as_db : bool
+        If True, convert amplitudes to dB before return.
+
+    Returns
+    -------
+    amplitudes : np.ndarray[float]
+        Frequency amplitudes of signal.
+    frequencies : np.ndarray[float]
+        Frequencies retrieved.
+    """
+    N = len(signal)
+    fft = np.fft.fft(signal)
+    frequencies = np.linspace(0, frame_rate, N // 2)
+    amplitudes = 2 / N * np.abs(fft[:N // 2])
+
+    if as_db:
+        amplitudes = 10 * np.log10(amplitudes)
+
+    return amplitudes, frequencies
+
+
 def process_airgard_df(df, spectral_transform=None,
                        spatial_transform=None, current_transform=None):
     """
@@ -83,8 +116,8 @@ def process_airgard_df(df, spectral_transform=None,
         Data-chunks in rows and processed variables as columns.
     """
     if spectral_transform is None:
-        spectral_transform = _partial_w_name(stfft_autopower, funcname='Z',
-                                             fft_size=2500)
+        spectral_transform = _partial_w_name(fft_amplitude, funcname='Z',
+                                             frame_rate=5000, as_db=True)
     if spatial_transform is None:
         spatial_transform = [
             _partial_w_name(np.mean, axis=0),
