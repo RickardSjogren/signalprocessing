@@ -88,3 +88,29 @@ def airgard_plot_and_spectrogram(spectrum, df, diff_n=100,
     f.tight_layout()
 
     return f, np.array([ax, ax1, ax2])
+
+
+def plot_processed_airgard_df(df, line_cols, spectrum_cols, figure_kwargs=None,
+                         pcolorfast_kwargs=None, to_db=False):
+
+    n_plots = len(line_cols) + 1
+    figure_kwargs = figure_kwargs if figure_kwargs is not None else dict()
+    f, axes = plt.subplots(n_plots, 1, sharex=True,
+                           **figure_kwargs)
+
+    for ax, cols in zip(axes, line_cols):
+        df[cols].plot.line(ax=ax)
+
+
+    pcolorfast_kwargs = pcolorfast_kwargs if pcolorfast_kwargs is not None \
+        else dict()
+    if to_db:
+        spectrum = 10 * np.log10(df[spectrum_cols]).T
+    else:
+        spectrum = df[spectrum_cols].T
+
+    cmap = pcolorfast_kwargs.pop('cmap', 'viridis')
+    axes[-1].pcolorfast(spectrum, cmap=cmap, **pcolorfast_kwargs)
+    axes[-1].grid(False)
+
+    return f, axes
