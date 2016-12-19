@@ -130,14 +130,13 @@ def process_airgard_df(df, start_day, spectral_transform=None,
             _partial_w_name(np.std, axis=0)
         ]
 
-    n_transforms = 1 + len(spatial_transform) + len(current_transform)
     processed = list()
     current_time = start_day
     index = list()
     for chunk, gap in chunk_df_on_diff(df, 'Time', .003):
+        index.append(current_time)
         delta = timedelta(seconds=gap)
         current_time += delta
-        index.append(current_time)
         if chunk is None:
             processed.append([None, None, None])
             continue

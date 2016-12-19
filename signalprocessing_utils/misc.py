@@ -66,19 +66,27 @@ def chunk_df_on_diff(df, column, cutoff):
     chunk : Union[pd.DataFrame, NoneType]
         Consecutive chunks of `df` or None if chunk is missing.
     """
-    large = df[column].diff() > cutoff
+    diffs = df[column].diff()
+
+    large = diffs > cutoff
     cuts = list(np.where(large)[0])
     cuts.append(len(df))
-    gaps = df[column].diff()[large]
-    median_gap = gaps.median()
+    gaps = diffs[large]
+
+    median_large_gap = gaps.median()
+    where_large = np.concatenate((np.array([0]), np.where(large)[0]))
+    median_chunk_size = np.median([df.Time.iloc[j - 1] - df.Time.iloc[i]
+                                   for i, j in zip(where_large, where_large[1:])])
 
     for i, (end, gap) in enumerate(zip(cuts, gaps)):
-        size = int(np.round(gap / median_gap))
+        size = int(np.round(gap / median_large_gap))
 
         for _ in range(size - 1):
-            yield None, gap
+            gap -= median_large_gap
+            yield None, median_large_gap + median_chunk_size
 
         start = 0 if i == 0 else cuts[i - 1]
         chunk = df.iloc[start:end]
 
-        yield chunk, gap
+        chunk_size = np.subtract(*chunk[column].iloc[[-1, 1]])
+        yield chunk, gap + chunk_size
