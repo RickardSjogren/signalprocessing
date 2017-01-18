@@ -101,7 +101,6 @@ def plot_processed_airgard_df(df, line_cols, spectrum_cols, figure_kwargs=None,
     for ax, cols in zip(axes, line_cols):
         df[cols].plot.line(ax=ax)
 
-
     pcolorfast_kwargs = pcolorfast_kwargs if pcolorfast_kwargs is not None \
         else dict()
     if to_db:
@@ -109,8 +108,9 @@ def plot_processed_airgard_df(df, line_cols, spectrum_cols, figure_kwargs=None,
     else:
         spectrum = df[spectrum_cols].T
 
+    masked = np.ma.masked_where(np.isnan(spectrum), spectrum)
     cmap = pcolorfast_kwargs.pop('cmap', 'viridis')
-    axes[-1].pcolorfast(spectrum, cmap=cmap, **pcolorfast_kwargs)
+    axes[-1].pcolorfast(masked, cmap=cmap, **pcolorfast_kwargs)
     axes[-1].grid(False)
 
     return f, axes

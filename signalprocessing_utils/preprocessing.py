@@ -59,7 +59,7 @@ def stfft_autopower(data, fft_size, overlap_fac=0.5, clip=None):
     return spectrogram
 
 
-def fft_amplitude(signal, frame_rate, as_db=False):
+def fft_amplitude(signal, N, as_db=False):
     """ Perform FFT and return amplitude and frequencies.
 
     Maximum frequency is `len(signal) // 2` according to
@@ -69,7 +69,7 @@ def fft_amplitude(signal, frame_rate, as_db=False):
     ----------
     signal : array_like
         1D-signal.
-    frame_rate : int, float
+    N : int, float
         Number of frames per second.
     as_db : bool
         If True, convert amplitudes to dB before return.
@@ -81,8 +81,7 @@ def fft_amplitude(signal, frame_rate, as_db=False):
     frequencies : np.ndarray[float]
         Frequencies retrieved.
     """
-    N = len(signal)
-    fft = np.fft.fft(signal)
+    fft = np.fft.fft(signal, N)
     amplitudes = 2 / N * np.abs(fft[:N // 2])
 
     if as_db:
@@ -118,7 +117,7 @@ def process_airgard_df(df, start_day, spectral_transform=None,
     """
     if spectral_transform is None:
         spectral_transform = _partial_w_name(fft_amplitude, funcname='Z',
-                                             frame_rate=5000, as_db=True)
+                                             N=5000, as_db=True)
     if spatial_transform is None:
         spatial_transform = [
             _partial_w_name(np.mean, axis=0),
