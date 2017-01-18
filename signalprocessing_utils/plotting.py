@@ -114,3 +114,62 @@ def plot_processed_airgard_df(df, line_cols, spectrum_cols, figure_kwargs=None,
     axes[-1].grid(False)
 
     return f, axes
+
+
+def plot_pca_controll_charts(pca, data, scores=None, figsize=None):
+    """ Plot PCA-controll charts of fitted PCA-model.
+
+    Parameters
+    ----------
+    pca : signalprocessing_utils.modelling.PCAPipeline
+        Fitted PCA.
+    data : pandas.DataFrame
+        Data to transform and plot.
+    scores : array_like, optional
+        Projections of ´data´.
+    figsize : tuple[float, float], optional
+        Figure size.
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure
+    numpy.ndarray[matplotlib.pyplot.Axes]
+    """
+    if data is None and scores is None:
+        raise ValueError('Either data or scores must be provided.')
+    if scores is None:
+        scores = pca.transform(data)
+
+    f, axes = plt.subplots(pca.named_steps['pca'].n_components + 2, 1,
+                           sharex=True, figsize=figsize)
+
+    for i, (ax, score, m_score) in enumerate(zip(axes, scores.T, pca.fitted_scores.T),
+                                             start=1):
+        s = m_score.std()
+        mu = m_score.mean()
+
+        ax.plot(score)
+        ax.axhline(mu, linestyle='--', color='red')
+        ax.axhline(mu - 6 * s, linestyle='--', color='green')
+        ax.axhline(mu + 6 * s, linestyle='--', color='green')
+        r2 = pca.named_steps['pca'].explained_variance_ratio_[i - 1]
+        ax.set_title('Component {} ({:.2f} %)'.format(i, r2 * 100))
+
+    axes[-2].plot(pca.residual_sum_of_squares(data))
+    axes[-2].set_title('Residuals')
+
+    # Plot residuals.
+    res_mu = pca.fitted_residual_ss.mean()
+    res_s = pca.fitted_residual_ss.std()
+    axes[-2].axhline(res_mu, linestyle='--', color='red')
+    axes[-2].axhline(res_mu + 6 * res_s, linestyle='--', color='green')
+
+    # Plot Hotelling's T2.
+    fitted_t2 = pca.hotellings_t2(pca.fitted_scores)
+    t2_mu = fitted_t2.mean()
+    t2_s = fitted_t2.std()
+    axes[-1].plot(pca.hotellings_t2(scores))
+    axes[-1].set_title('Hotelling\'s T2')
+    axes[-1].axhline(t2_mu, linestyle='--', color='red')
+    axes[-1].axhline(t2_mu + 6 * t2_s, linestyle='--', color='green')
+    return f, axes
