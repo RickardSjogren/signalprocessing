@@ -13,6 +13,19 @@ class PCAPipeline(pipeline.Pipeline):
                                                    with_std=uv_scale)),
             ('pca', PCA(n_components))
         ])
+        self.fitted_scores = None
+        self.fitted_residual_ss = None
+
+    def fit_transform(self, X, y=None, **fit_params):
+        scores = super(PCAPipeline, self).fit_transform(X, y, **fit_params)
+        self.fitted_scores = scores
+        self.fitted_residual_ss = self.residual_sum_of_squares(X, scores)
+        return scores
+
+    def fit(self, X, y=None, **fit_params):
+        super(PCAPipeline, self).fit(X, y, **fit_params)
+        self.fitted_scores = self.transform(X)
+        self.fitted_residual_ss = self.residual_sum_of_squares(X, self.fitted_scores)
 
     @property
     def components_(self):
@@ -62,3 +75,23 @@ class PCAPipeline(pipeline.Pipeline):
 
         predicted_data = self.inverse_transform(scores)
         return data - predicted_data
+
+    def residual_sum_of_squares(self, data, scores=None, axis=1):
+        """ Calculate residual sum of squares.
+
+        Parameters
+        ----------
+        data : array_like
+            Input data.
+        scores : array_like, optional
+            Projections of `data`.
+        axis : int
+            Array axis index (default 1 / row-wise).
+
+        Returns
+        -------
+        array_like
+            Model residual sum of squares.
+        """
+        residuals = self.residuals(data, scores)
+        return residuals.sum(axis=axis)
