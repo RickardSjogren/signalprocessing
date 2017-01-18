@@ -26,6 +26,7 @@ class PCAPipeline(pipeline.Pipeline):
         super(PCAPipeline, self).fit(X, y, **fit_params)
         self.fitted_scores = self.transform(X)
         self.fitted_residual_ss = self.residual_sum_of_squares(X, self.fitted_scores)
+        return self
 
     @property
     def components_(self):
