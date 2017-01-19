@@ -95,4 +95,4 @@ class PCAPipeline(pipeline.Pipeline):
             Model residual sum of squares.
         """
         residuals = self.residuals(data, scores)
-        return residuals.sum(axis=axis)
+        return (residuals **2).sum(axis=axis)
