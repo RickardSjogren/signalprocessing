@@ -117,7 +117,7 @@ def plot_processed_airgard_df(df, line_cols, spectrum_cols, figure_kwargs=None,
 
 
 def plot_pca_controll_charts(pca, data, scores=None, residuals=None,
-                             hotellings_t2=None, figsize=None):
+                             hotellings_t2=None, figsize=None, **kwargs):
     """ Plot PCA-controll charts of fitted PCA-model.
 
     Parameters
@@ -160,19 +160,21 @@ def plot_pca_controll_charts(pca, data, scores=None, residuals=None,
                                              start=1):
         r2 = pca.named_steps['pca'].explained_variance_ratio_[i - 1]
         title = 'Component {} ({:.2f} %)'.format(i, r2 * 100)
-        plot_1d_control_chart(score, m_score, ax, title=title)
+        plot_1d_control_chart(score, m_score, ax, title=title, **kwargs)
 
     # Plot residuals.
     if residuals is not None:
         ax_i = -1 - int(hotellings_t2 is not None)
         plot_1d_control_chart(residuals, pca.fitted_residual_ss, axes[ax_i],
-                              negative=False, title='Residual sum of squares')
+                              negative=False, title='Residual sum of squares',
+                              **kwargs)
 
     if hotellings_t2 is not None:
         # Plot Hotelling's T2.
         fitted_t2 = pca.hotellings_t2(pca.fitted_scores)
         plot_1d_control_chart(hotellings_t2, fitted_t2, axes[-1],
-                              negative=False, title='Hotelling\s T2')
+                              negative=False, title='Hotelling\s T2',
+                              **kwargs)
 
     axes[-1].set_xlim(0, len(scores))
 
@@ -180,7 +182,8 @@ def plot_pca_controll_charts(pca, data, scores=None, residuals=None,
 
 
 def plot_1d_control_chart(data, control_data, ax=None, sigma=6,
-                          positive=True, negative=True, title=None):
+                          positive=True, negative=True, title=None,
+                          legend=False, bad_color='red'):
     """ Plot a 1D control chart of `data` using control limits
     from `control_data`
 
@@ -200,10 +203,15 @@ def plot_1d_control_chart(data, control_data, ax=None, sigma=6,
         If True, draw negative control limit.
     title : str, optional
         If provided, set title of plot.
+    legend : bool
+        If True, draw legend describing control limits.
+    bad_color : Any
+        Valid matplotlib-color. Color used to color out-of-bounds regions.
 
     Returns
     -------
-
+    matplotlib.pyplot.Figure
+    matplotlib.pyplot.Axes
     """
     if ax is None:
         f, ax = plt.subplots()
@@ -211,14 +219,41 @@ def plot_1d_control_chart(data, control_data, ax=None, sigma=6,
         f = ax.figure
     mean = control_data.mean()
     std = control_data.std()
-    ax.plot(data)
-    ax.axhline(mean, linestyle='--', color='red')
+
+    upper = mean + sigma * std if positive else float('inf')
+    lower = mean - sigma * std if negative else float('-inf')
+
+    # Plot in-bounds data.
+    mask = np.ma.masked_outside(data, upper, lower)
+    ax.plot(mask)
+
+    # If out-of-bounds data, plot with different color.
+    if mask.mask.any():
+        m = mask.mask
+
+        # In order to be able to plot continuous time-plots, points
+        # adjacent to out-of-bounds points must be located as well.
+        m[:-1] = m[:-1] | m[1:]
+        m[1:] = m[1:] | m[:-1]
+        mask.mask = ~m
+        ax.plot(mask, color=bad_color)
+
+    ax.plot([0, len(data)], [mean, mean],
+            color='red', linestyle='--', label=r'$\mu$')
 
     if title is not None:
         ax.set_title(title)
+
+    sigma_label = r'$\mu {} {}\cdot\sigma$'.format(
+        r'\pm' if positive and negative else '+' if positive else '-', sigma)
     if positive:
-        ax.axhline(mean + sigma * std, linestyle='--', color='green')
+        ax.plot([0, len(data)], [upper, upper],
+                color='green', linestyle='--', label=sigma_label)
     if negative:
-        ax.axhline(mean - sigma * std, linestyle='--', color='green')
+        ax.plot([0, len(data)], [lower, lower], color='green', linestyle='--',
+                label=sigma_label if not positive else None)
+
+    if legend:
+        ax.legend(loc=2)
 
     return f, ax
