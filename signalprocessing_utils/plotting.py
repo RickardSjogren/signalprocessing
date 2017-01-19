@@ -116,7 +116,8 @@ def plot_processed_airgard_df(df, line_cols, spectrum_cols, figure_kwargs=None,
     return f, axes
 
 
-def plot_pca_controll_charts(pca, data, scores=None, figsize=None):
+def plot_pca_controll_charts(pca, data, scores=None, residuals=None,
+                             hotellings_t2=None, figsize=None):
     """ Plot PCA-controll charts of fitted PCA-model.
 
     Parameters
@@ -126,50 +127,98 @@ def plot_pca_controll_charts(pca, data, scores=None, figsize=None):
     data : pandas.DataFrame
         Data to transform and plot.
     scores : array_like, optional
-        Projections of ´data´.
+        Projections of ´data´. If None, scores will be computed.
+    residuals : array_like, NoneType, bool
+        Observation-wise residual sum of squares of `data`. If None,
+        residuals will not be plotted. If True, residual sum of squares
+        will be computed from `data`.
+    hotellings_t2 : array_like, NoneType, bool
+        Observation-wise Hotelling's T2 of projected `data`. If None,
+        Hotelling's T2 will not be plotted. If True, Hotelling's T2
+        will be computed from `data`.
     figsize : tuple[float, float], optional
-        Figure size.
+        Figure size in inches.
 
     Returns
     -------
     matplotlib.pyplot.Figure
     numpy.ndarray[matplotlib.pyplot.Axes]
     """
-    if data is None and scores is None:
-        raise ValueError('Either data or scores must be provided.')
     if scores is None:
         scores = pca.transform(data)
 
-    f, axes = plt.subplots(pca.named_steps['pca'].n_components + 2, 1,
+    if not isinstance(residuals, np.ndarray) and residuals == True:
+        residuals = pca.residual_sum_of_squares(data)
+    if not isinstance(hotellings_t2, np.ndarray) and hotellings_t2 == True:
+        hotellings_t2 = pca.hotellings_t2(scores)
+
+    n_extra = sum([residuals is not None, hotellings_t2 is not None])
+    f, axes = plt.subplots(pca.named_steps['pca'].n_components + n_extra, 1,
                            sharex=True, figsize=figsize)
 
     for i, (ax, score, m_score) in enumerate(zip(axes, scores.T, pca.fitted_scores.T),
                                              start=1):
-        s = m_score.std()
-        mu = m_score.mean()
-
-        ax.plot(score)
-        ax.axhline(mu, linestyle='--', color='red')
-        ax.axhline(mu - 6 * s, linestyle='--', color='green')
-        ax.axhline(mu + 6 * s, linestyle='--', color='green')
         r2 = pca.named_steps['pca'].explained_variance_ratio_[i - 1]
-        ax.set_title('Component {} ({:.2f} %)'.format(i, r2 * 100))
-
-    axes[-2].plot(pca.residual_sum_of_squares(data))
-    axes[-2].set_title('Residuals')
+        title = 'Component {} ({:.2f} %)'.format(i, r2 * 100)
+        plot_1d_control_chart(score, m_score, ax, title=title)
 
     # Plot residuals.
-    res_mu = pca.fitted_residual_ss.mean()
-    res_s = pca.fitted_residual_ss.std()
-    axes[-2].axhline(res_mu, linestyle='--', color='red')
-    axes[-2].axhline(res_mu + 6 * res_s, linestyle='--', color='green')
+    if residuals is not None:
+        ax_i = -1 - int(hotellings_t2 is not None)
+        plot_1d_control_chart(residuals, pca.fitted_residual_ss, axes[ax_i],
+                              negative=False, title='Residual sum of squares')
 
-    # Plot Hotelling's T2.
-    fitted_t2 = pca.hotellings_t2(pca.fitted_scores)
-    t2_mu = fitted_t2.mean()
-    t2_s = fitted_t2.std()
-    axes[-1].plot(pca.hotellings_t2(scores))
-    axes[-1].set_title('Hotelling\'s T2')
-    axes[-1].axhline(t2_mu, linestyle='--', color='red')
-    axes[-1].axhline(t2_mu + 6 * t2_s, linestyle='--', color='green')
+    if hotellings_t2 is not None:
+        # Plot Hotelling's T2.
+        fitted_t2 = pca.hotellings_t2(pca.fitted_scores)
+        plot_1d_control_chart(hotellings_t2, fitted_t2, axes[-1],
+                              negative=False, title='Hotelling\s T2')
+
+    axes[-1].set_xlim(0, len(scores))
+
     return f, axes
+
+
+def plot_1d_control_chart(data, control_data, ax=None, sigma=6,
+                          positive=True, negative=True, title=None):
+    """ Plot a 1D control chart of `data` using control limits
+    from `control_data`
+
+    Parameters
+    ----------
+    data : array_like
+        Data to plot.
+    control_data : array_like
+        Data to calculate controll limits for:
+    ax : matplotlib.pyplot.Axes, optional
+        Axis to plot at.
+    sigma : int, float
+        Number of standard deviation to use.
+    positive : bool
+        If True, draw positive control limit.
+    negative : bool
+        If True, draw negative control limit.
+    title : str, optional
+        If provided, set title of plot.
+
+    Returns
+    -------
+
+    """
+    if ax is None:
+        f, ax = plt.subplots()
+    else:
+        f = ax.figure
+    mean = control_data.mean()
+    std = control_data.std()
+    ax.plot(data)
+    ax.axhline(mean, linestyle='--', color='red')
+
+    if title is not None:
+        ax.set_title(title)
+    if positive:
+        ax.axhline(mean + sigma * std, linestyle='--', color='green')
+    if negative:
+        ax.axhline(mean - sigma * std, linestyle='--', color='green')
+
+    return f, ax
