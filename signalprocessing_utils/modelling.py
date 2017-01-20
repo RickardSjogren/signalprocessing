@@ -7,6 +7,32 @@ from sklearn import pipeline
 
 class PCAPipeline(pipeline.Pipeline):
 
+    """ Data scaling and Principal Component Analysis (PCA).
+
+    This class encapsulates a simple pipeline consisting
+    of data scaling and PCA-fitting. It also extends the
+    Scikit-learn PCA-class with calculation of Hotelling's T2
+    statistics, model residuals and observation/variable-wise
+    residual sums of squares.
+
+    Parameters
+    ----------
+    n_components : int
+        Number of components to use.
+    mean_center : bool (default True)
+        If True, mean center data columns.
+    uv_scale : bool (default True)
+        If True, scale data columns to equal variance.
+
+    Attributes
+    ----------
+    fitted_scores : array, [n_observations, n_components]
+        Scores of observations used to fit model.
+    fitted_residual_ss : array, [n_observations]
+        Observation-wise residual sum of squares of
+        observations used to fit model.
+    """
+
     def __init__(self, n_components, mean_center=True, uv_scale=True):
         super(PCAPipeline, self).__init__([
             ('scale', preprocessing.StandardScaler(with_mean=mean_center,
@@ -37,12 +63,12 @@ class PCAPipeline(pipeline.Pipeline):
 
         Parameters
         ----------
-        scores : array_like
+        scores : array
             PCA projections.
 
         Returns
         -------
-        t2 : array_like
+        t2 : array
             Observation-wise Hotellings T2.
         """
         pca_ = self.named_steps['pca']
@@ -67,7 +93,7 @@ class PCAPipeline(pipeline.Pipeline):
 
         Returns
         -------
-        array_like
+        array
             Model residuals.
         """
 
@@ -91,7 +117,7 @@ class PCAPipeline(pipeline.Pipeline):
 
         Returns
         -------
-        array_like
+        array
             Model residual sum of squares.
         """
         residuals = self.residuals(data, scores)
