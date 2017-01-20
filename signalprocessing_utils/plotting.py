@@ -117,7 +117,8 @@ def plot_processed_airgard_df(df, line_cols, spectrum_cols, figure_kwargs=None,
 
 
 def plot_pca_controll_charts(pca, data, scores=None, residuals=None,
-                             hotellings_t2=None, figsize=None, **kwargs):
+                             hotellings_t2=None, figsize=None, dpi=600,
+                             **kwargs):
     """ Plot PCA-controll charts of fitted PCA-model.
 
     Parameters
@@ -154,7 +155,7 @@ def plot_pca_controll_charts(pca, data, scores=None, residuals=None,
 
     n_extra = sum([residuals is not None, hotellings_t2 is not None])
     f, axes = plt.subplots(pca.named_steps['pca'].n_components + n_extra, 1,
-                           sharex=True, figsize=figsize)
+                           sharex=True, figsize=figsize, dpi=dpi)
 
     for i, (ax, score, m_score) in enumerate(zip(axes, scores.T, pca.fitted_scores.T),
                                              start=1):
@@ -177,6 +178,7 @@ def plot_pca_controll_charts(pca, data, scores=None, residuals=None,
                               **kwargs)
 
     axes[-1].set_xlim(0, len(scores))
+    f.tight_layout()
 
     return f, axes
 
