@@ -1,8 +1,7 @@
+import functools
+
 import numpy as np
 import pandas as pd
-import functools
-from datetime import timedelta
-from .misc import chunk_df_on_diff
 
 
 def stfft_autopower(data, fft_size, overlap_fac=0.5, clip=None):
@@ -90,87 +89,34 @@ def fft_amplitude(signal, N, as_db=False):
     return amplitudes
 
 
-def process_airgard_df(df, start_day, spectral_transform=None,
-                       spatial_transform=None, current_transform=None):
-    """ Process a single day of Airgard-data store as consecutive
-    dataframe.
+def rolling_statistics(df, points, label, columns=None):
+    """ Compute rolling mean and std deviation of columns in `df`
+    and concatenate with input data.
 
     Parameters
     ----------
     df : pandas.DataFrame
-        Data to process.
-    spectral_transform : Callable, optional
-        Function to do spectral processing of 1D-sound. If output has more
-        than one dimension the column-wise average will be used. Defaults
-        to: :py:`stfft_autopower`.
-    spatial_transform : list[Callable], optional
-        List of transforms to perform on accelerometer (X Y Z) readings.
-        Defaults to average and standard-deviation.
-    current_transform : list[Callable], optional
-        List of transform to perform on current (Cur) readings. Defaults
-        to average and standard-deviation.
+        Input data.
+    points : int
+        Number of points to use for rolling window.
+    label : str
+        Column suffix to add to processed columns.
+    columns : list[Any], optional
+        If provided, only process `columns`
 
     Returns
     -------
     pandas.DataFrame
-        Data-chunks in rows and processed variables as columns.
     """
-    if spectral_transform is None:
-        spectral_transform = _partial_w_name(fft_amplitude, funcname='Z',
-                                             N=5000, as_db=True)
-    if spatial_transform is None:
-        spatial_transform = [
-            _partial_w_name(np.mean, axis=0),
-            _partial_w_name(np.std, axis=0),
-        ]
-    if current_transform is None:
-        current_transform = [
-            _partial_w_name(np.mean, axis=0),
-            _partial_w_name(np.std, axis=0)
-        ]
+    if columns is None:
+        columns = df.columns
+    rename = lambda stat: dict(
+        zip(columns, [c + ' {}_{}'.format(stat, label) for c in columns]))
 
-    processed = list()
-    current_time = start_day
-    index = list()
-    for chunk, gap in chunk_df_on_diff(df, 'Time', .003):
-        index.append(current_time)
-        delta = timedelta(seconds=gap)
-        current_time += delta
-        if chunk is None:
-            processed.append([None, None, None])
-            continue
+    mean = df[columns].rolling(points).mean().rename(columns=rename('mean'))
+    std = df[columns].rolling(points).std().rename(columns=rename('std'))
 
-        spectrum = spectral_transform(chunk.Mic)
-        if spectrum.ndim > 1:
-            spectrum = np.mean(spectrum, axis=0)
-
-        spatial = [transform(chunk.drop(['Time', 'Mic', 'Cur'], 1))
-                   for transform in spatial_transform]
-        current = [transform(chunk['Cur']) for transform in current_transform]
-
-        processed.append((np.concatenate([np.array(s) for s in spatial]),
-                          current, spectrum))
-
-    cols = [c + '_' + t.__name__ for t in spatial_transform
-            for c in ['X', 'Y', 'Z']]
-    cols += ['Cur' + '_' + t.__name__ for t in current_transform]
-    cols += ['{}{}'.format(spectral_transform.__name__, i) for
-             i, _ in enumerate(processed[0][2], start=1)]
-
-    processed_arr = np.empty((len(processed), len(cols)),
-                             dtype=float)
-
-    for i, (spatial, current, spectrum) in enumerate(processed):
-        if spatial is None:
-            processed_arr[i] = np.nan
-            continue
-
-        processed_arr[i, :len(spatial)] = spatial
-        processed_arr[i, len(spatial):len(spatial) + len(current)] = current
-        processed_arr[i, len(spatial) + len(current):] = spectrum
-
-    processed_df = pd.DataFrame(processed_arr, columns=cols, index=index)
-    return processed_df
+    return pd.concat((mean, std), axis=1)
 
 
 def _partial_w_name(func, *args, funcname=None, **kwargs):
