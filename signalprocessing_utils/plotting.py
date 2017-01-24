@@ -1,9 +1,11 @@
 import numpy as np
+import pandas as pd
 
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 from matplotlib import colorbar
 from matplotlib import colors
+from signalprocessing_utils.misc import iter_cols
 
 
 def plot_bwt_coefficients(coeffs, cmap='PRGn'):
@@ -117,8 +119,7 @@ def plot_processed_airgard_df(df, line_cols, spectrum_cols, figure_kwargs=None,
 
 
 def plot_pca_controll_charts(pca, data, scores=None, residuals=None,
-                             hotellings_t2=None, figsize=None, dpi=600,
-                             **kwargs):
+                             figsize=None, dpi=600, **kwargs):
     """ Plot PCA-controll charts of fitted PCA-model.
 
     Parameters
@@ -129,14 +130,9 @@ def plot_pca_controll_charts(pca, data, scores=None, residuals=None,
         Data to transform and plot.
     scores : array_like, optional
         Projections of ´data´. If None, scores will be computed.
-    residuals : array_like, NoneType, bool
+    residuals : array_like, optional
         Observation-wise residual sum of squares of `data`. If None,
-        residuals will not be plotted. If True, residual sum of squares
-        will be computed from `data`.
-    hotellings_t2 : array_like, NoneType, bool
-        Observation-wise Hotelling's T2 of projected `data`. If None,
-        Hotelling's T2 will not be plotted. If True, Hotelling's T2
-        will be computed from `data`.
+        residuals will be calulcated from data.
     figsize : tuple[float, float], optional
         Figure size in inches.
 
@@ -148,16 +144,15 @@ def plot_pca_controll_charts(pca, data, scores=None, residuals=None,
     if scores is None:
         scores = pca.transform(data)
 
-    if not isinstance(residuals, np.ndarray) and residuals == True:
+    if residuals is None:
         residuals = pca.residual_sum_of_squares(data)
-    if not isinstance(hotellings_t2, np.ndarray) and hotellings_t2 == True:
-        hotellings_t2 = pca.hotellings_t2(scores)
 
-    n_extra = sum([residuals is not None, hotellings_t2 is not None])
-    f, axes = plt.subplots(pca.named_steps['pca'].n_components + n_extra, 1,
+    f, axes = plt.subplots(pca.named_steps['pca'].n_components + 1, 1,
                            sharex=True, figsize=figsize, dpi=dpi)
 
-    for i, (ax, score, m_score) in enumerate(zip(axes, scores.T, pca.fitted_scores.T),
+    for i, (ax, score, m_score) in enumerate(zip(axes,
+                                                 iter_cols(scores),
+                                                 iter_cols(pca.fitted_scores)),
                                              start=1):
         r2 = pca.named_steps['pca'].explained_variance_ratio_[i - 1]
         title = 'Component {} ({:.2f} %)'.format(i, r2 * 100)
@@ -165,16 +160,8 @@ def plot_pca_controll_charts(pca, data, scores=None, residuals=None,
 
     # Plot residuals.
     if residuals is not None:
-        ax_i = -1 - int(hotellings_t2 is not None)
-        plot_1d_control_chart(residuals, pca.fitted_residual_ss, axes[ax_i],
+        plot_1d_control_chart(residuals, pca.fitted_residual_ss, axes[-1],
                               negative=False, title='Residual sum of squares',
-                              **kwargs)
-
-    if hotellings_t2 is not None:
-        # Plot Hotelling's T2.
-        fitted_t2 = pca.hotellings_t2(pca.fitted_scores)
-        plot_1d_control_chart(hotellings_t2, fitted_t2, axes[-1],
-                              negative=False, title='Hotelling\s T2',
                               **kwargs)
 
     axes[-1].set_xlim(0, len(scores))
