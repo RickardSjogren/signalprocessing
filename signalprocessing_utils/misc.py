@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 
 def strided_sliding_window(data, window):
@@ -90,3 +91,27 @@ def chunk_df_on_diff(df, column, cutoff):
 
         chunk_size = np.subtract(*chunk[column].iloc[[-1, 1]])
         yield chunk, gap + chunk_size
+
+
+def iter_cols(data):
+    """ Convenience function iterate over columns of `data` which
+    might be numpy array or dataframe.
+
+    Parameters
+    ----------
+    data : numpy.ndarray, pandas.DataFraem
+        Data to iterate over.
+
+    Yields
+    ------
+    pd.Series, np.ndarray
+        Columns in `data`.
+    """
+
+    if isinstance(data, pd.DataFrame):
+        iterator = (col for _, col in data.iteritems())
+    else:
+        iterator = iter(data.T)
+
+    for col in iterator:
+        yield col
