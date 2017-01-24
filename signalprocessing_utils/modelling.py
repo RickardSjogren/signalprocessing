@@ -146,7 +146,7 @@ class PCAPipeline(pipeline.Pipeline):
             Model residual sum of squares.
         """
         residuals = self.residuals(data, scores)
-        return _make_series((residuals **2).sum(axis=axis), data)
+        return _make_series((residuals **2).sum(axis=axis), data, name='RSS')
 
 
 def _make_df(array, template, index=True, columns=True, **kwargs):
@@ -212,7 +212,8 @@ def _make_series(array, template, index=True, **kwargs):
     -------
     pandas.Series, array
     """
-    if not isinstance(template, pd.Series) and isinstance(index, bool):
+    if not isinstance(template, (pd.Series, pd.DataFrame)) \
+            and isinstance(index, bool):
         return array
 
     if index == True:
