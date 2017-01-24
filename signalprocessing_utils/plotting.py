@@ -1,10 +1,10 @@
-import numpy as np
-import pandas as pd
-
 import matplotlib.pyplot as plt
-from matplotlib import gridspec
+import numpy as np
+from matplotlib import dates, pyplot
 from matplotlib import colorbar
 from matplotlib import colors
+from matplotlib import gridspec
+
 from signalprocessing_utils.misc import iter_cols
 
 
@@ -53,72 +53,47 @@ def plot_bwt_coefficients(coeffs, cmap='PRGn'):
     return f, np.array(axes)
 
 
-def airgard_plot_and_spectrogram(spectrum, df, diff_n=100,
-                                 figsize=(11, 12.6), dpi=800):
-    """ Make plots of derivative of accelerometers, current and spectrogram.
+def make_ax_timespan(ax, datetimes, resolution=None):
+    """ Make `ax` X-axis a time-axis.
+
+    In order to function properly `ax.figure.autofmt_xdate` must
+    be called after plot is finished.
 
     Parameters
     ----------
-    spectrum : array_like
-        Spectrum
-    df : pandas.DataFrame
-        Airgard-data frame with columns Cur, X, Y, Z
-    diff_n : int
-        Number of observations to use for accelerometer-derivative.
-    figsize : tuple[float, float]
-        Figure size in inches.
-    dpi : int
-        Figure DPI.
+    ax : matplotlib.pyplot.Axes
+        Axis-instance to adjust.
+    datetimes : list[datetime.DateTime]
+        Datetime-index used.
+    resolution : str {'month', 'week', 'day', 'hour'}, optional
+        Specified resolution. If None, automatic formatting is used.
 
     Returns
     -------
-    matplotlib.pyplot.Figure
-    np.ndarray[matplotlib.pyplot.Axes]
+    np.ndarray
+        `datetimes` converted to equispaced numeric array.
     """
-    assert len(spectrum) == len(df), 'Lengths does not match'
-    f, (ax, ax1, ax2) = plt.subplots(3, 1, figsize=figsize,
-                                     dpi=dpi, sharex=True)
-    df.drop('Cur', 1).diff(diff_n).plot.line(ax=ax)
-    df.Cur.plot.line(ax=ax1)
-    ax.set_title('d(Accelerometer)')
-    ax2.pcolorfast(spectrum.T, cmap='viridis')
-    ax1.set_title('Cur')
-    ax2.grid(False)
-    ax2.set_ylabel('Frequency (Hz)')
-    ax2.set_xlabel('Time')
-    ax2.set_title('Spectrogram')
-    f.tight_layout()
+    times = dates.date2num(datetimes)
+    if resolution == 'month':
+        locator = dates.MonthLocator()
+    elif resolution == 'week':
+        locator = dates.WeekdayLocator()
+    elif resolution == 'day':
+        locator = dates.DayLocator()
+    elif resolution == 'hour':
+        locator = dates.HourLocator()
+    elif isinstance(resolution, dates.DateLocator):
+        locator = resolution
+    elif resolution is None:
+        locator = dates.AutoDateLocator()
 
-    return f, np.array([ax, ax1, ax2])
+    ax.xaxis.set_major_locator(locator)
+    ax.xaxis.set_major_formatter(dates.AutoDateFormatter(locator))
 
-
-def plot_processed_airgard_df(df, line_cols, spectrum_cols, figure_kwargs=None,
-                         pcolorfast_kwargs=None, to_db=False):
-
-    n_plots = len(line_cols) + 1
-    figure_kwargs = figure_kwargs if figure_kwargs is not None else dict()
-    f, axes = plt.subplots(n_plots, 1, sharex=True,
-                           **figure_kwargs)
-
-    for ax, cols in zip(axes, line_cols):
-        df[cols].plot.line(ax=ax)
-
-    pcolorfast_kwargs = pcolorfast_kwargs if pcolorfast_kwargs is not None \
-        else dict()
-    if to_db:
-        spectrum = 10 * np.log10(df[spectrum_cols]).T
-    else:
-        spectrum = df[spectrum_cols].T
-
-    masked = np.ma.masked_where(np.isnan(spectrum), spectrum)
-    cmap = pcolorfast_kwargs.pop('cmap', 'viridis')
-    axes[-1].pcolorfast(masked, cmap=cmap, **pcolorfast_kwargs)
-    axes[-1].grid(False)
-
-    return f, axes
+    return times
 
 
-def plot_pca_controll_charts(pca, data, scores=None, residuals=None,
+def plot_pca_controll_charts(pca, scores, residuals, x_index=None, axes=None,
                              figsize=None, dpi=600, **kwargs):
     """ Plot PCA-controll charts of fitted PCA-model.
 
@@ -126,13 +101,15 @@ def plot_pca_controll_charts(pca, data, scores=None, residuals=None,
     ----------
     pca : signalprocessing_utils.modelling.PCAPipeline
         Fitted PCA.
-    data : pandas.DataFrame
-        Data to transform and plot.
-    scores : array_like, optional
+    scores : array_like
         Projections of ´data´. If None, scores will be computed.
-    residuals : array_like, optional
+    residuals : array_like
         Observation-wise residual sum of squares of `data`. If None,
         residuals will be calulcated from data.
+    x_index : array
+        If provided, `x_index` is used as x-axis index for all plots.
+    axes : list[matplotlib.pyplot.Axes], optional
+        Sequence of axis-object to plot at.
     figsize : tuple[float, float], optional
         Figure size in inches.
 
@@ -141,14 +118,11 @@ def plot_pca_controll_charts(pca, data, scores=None, residuals=None,
     matplotlib.pyplot.Figure
     numpy.ndarray[matplotlib.pyplot.Axes]
     """
-    if scores is None:
-        scores = pca.transform(data)
-
-    if residuals is None:
-        residuals = pca.residual_sum_of_squares(data)
-
-    f, axes = plt.subplots(pca.named_steps['pca'].n_components + 1, 1,
-                           sharex=True, figsize=figsize, dpi=dpi)
+    if axes is None:
+        f, axes = plt.subplots(pca.named_steps['pca'].n_components + 1, 1,
+                               sharex=True, figsize=figsize, dpi=dpi)
+    else:
+        f = axes[0].figure
 
     for i, (ax, score, m_score) in enumerate(zip(axes,
                                                  iter_cols(scores),
@@ -156,21 +130,19 @@ def plot_pca_controll_charts(pca, data, scores=None, residuals=None,
                                              start=1):
         r2 = pca.named_steps['pca'].explained_variance_ratio_[i - 1]
         title = 'Component {} ({:.2f} %)'.format(i, r2 * 100)
-        plot_1d_control_chart(score, m_score, ax, title=title, **kwargs)
+        plot_1d_control_chart(score, m_score, x_index,
+                              ax=ax, title=title, **kwargs)
 
     # Plot residuals.
     if residuals is not None:
-        plot_1d_control_chart(residuals, pca.fitted_residual_ss, axes[-1],
+        plot_1d_control_chart(residuals, pca.fitted_residual_ss, x_index, ax=axes[-1],
                               negative=False, title='Residual sum of squares',
                               **kwargs)
-
-    axes[-1].set_xlim(0, len(scores))
-    f.tight_layout()
 
     return f, axes
 
 
-def plot_1d_control_chart(data, control_data, ax=None, sigma=6,
+def plot_1d_control_chart(data, control_data, index=None, ax=None, sigma=6,
                           positive=True, negative=True, title=None,
                           legend=False, bad_color='red'):
     """ Plot a 1D control chart of `data` using control limits
@@ -206,6 +178,10 @@ def plot_1d_control_chart(data, control_data, ax=None, sigma=6,
         f, ax = plt.subplots()
     else:
         f = ax.figure
+
+    if index is None:
+        index = np.arange(len(data))
+
     mean = control_data.mean()
     std = control_data.std()
 
@@ -214,7 +190,7 @@ def plot_1d_control_chart(data, control_data, ax=None, sigma=6,
 
     # Plot in-bounds data.
     mask = np.ma.masked_outside(data, upper, lower)
-    ax.plot(mask)
+    ax.plot(index, mask)
 
     # If out-of-bounds data, plot with different color.
     if mask.mask.any():
@@ -225,9 +201,9 @@ def plot_1d_control_chart(data, control_data, ax=None, sigma=6,
         m[:-1] = m[:-1] | m[1:]
         m[1:] = m[1:] | m[:-1]
         mask.mask = ~m
-        ax.plot(mask, color=bad_color)
+        ax.plot(index, mask, color=bad_color)
 
-    ax.plot([0, len(data)], [mean, mean],
+    ax.plot([index[0], index[-1]], [mean, mean],
             color='red', linestyle='--', label=r'$\mu$')
 
     if title is not None:
@@ -236,13 +212,60 @@ def plot_1d_control_chart(data, control_data, ax=None, sigma=6,
     sigma_label = r'$\mu {} {}\cdot\sigma$'.format(
         r'\pm' if positive and negative else '+' if positive else '-', sigma)
     if positive:
-        ax.plot([0, len(data)], [upper, upper],
+        ax.plot([index[0], index[-1]], [upper, upper],
                 color='green', linestyle='--', label=sigma_label)
     if negative:
-        ax.plot([0, len(data)], [lower, lower], color='green', linestyle='--',
+        ax.plot([index[0], index[-1]], [lower, lower], color='green', linestyle='--',
                 label=sigma_label if not positive else None)
 
     if legend:
         ax.legend(loc=2)
 
     return f, ax
+
+
+def timeseries_heatmap(data, ax, n_points=1200, sigma=6, **kwargs):
+    """ Make time-series heatmap.
+
+    Parameters
+    ----------
+    data : pandas.DataFrame
+        Data-frame with `DateTime`-index.
+    ax : matplotlib.pyplot.Axes
+        Axis instance to plot at.
+    n_points : int
+        Number of points to down sample data-frame to. If None,
+        no down-sampling is performed.
+    sigma : float, int
+        Number of standard deviations. Color-map used for heatmap is
+        normalized to mean plus minus `sigma` standard deviations.
+    **kwargs
+        Key-word arguments passed to `ax.pcolormesh`
+
+    Returns
+    -------
+    matplotlib.collections.QuadMesh
+        Heatmap quad-mesh.
+    """
+    cmap = plt.get_cmap('viridis')
+    cmap.set_bad('red')
+
+    std = np.ravel(data).std()
+    mean = np.ravel(data).std()
+    vmin = mean - sigma * std
+    vmax = mean + sigma * std
+
+    if n_points is not None:
+        timespan = data.index[-1] - data.index[0]
+        minutes = max([1, int((timespan.seconds / 60) / n_points)])
+        downsampled = data.resample('{}T'.format(minutes)).mean()
+    else:
+        downsampled = data
+
+    mask = np.ma.masked_where(np.isnan(downsampled), downsampled)
+    y = np.arange(0, data.shape[1])
+    index = dates.date2num(downsampled.index.to_pydatetime())
+    heatmap = ax.pcolormesh(index, y, mask.T, cmap=cmap, vmin=vmin, vmax=vmax,
+                            **kwargs)
+    ax.set_ylim([y[0], y[-1]])
+    return heatmap
