@@ -89,6 +89,7 @@ def make_ax_timespan(ax, datetimes, resolution=None):
 
     ax.xaxis.set_major_locator(locator)
     ax.xaxis.set_major_formatter(dates.AutoDateFormatter(locator))
+    ax.set_xlim([times[0], times[-1]])
 
     return times
 
@@ -224,7 +225,7 @@ def plot_1d_control_chart(data, control_data, index=None, ax=None, sigma=6,
     return f, ax
 
 
-def timeseries_heatmap(data, ax, n_points=1200, sigma=6, **kwargs):
+def timeseries_heatmap(data, ax, n_points=1200, **kwargs):
     """ Make time-series heatmap.
 
     Parameters
@@ -236,9 +237,6 @@ def timeseries_heatmap(data, ax, n_points=1200, sigma=6, **kwargs):
     n_points : int
         Number of points to down sample data-frame to. If None,
         no down-sampling is performed.
-    sigma : float, int
-        Number of standard deviations. Color-map used for heatmap is
-        normalized to mean plus minus `sigma` standard deviations.
     **kwargs
         Key-word arguments passed to `ax.pcolormesh`
 
@@ -247,17 +245,10 @@ def timeseries_heatmap(data, ax, n_points=1200, sigma=6, **kwargs):
     matplotlib.collections.QuadMesh
         Heatmap quad-mesh.
     """
-    cmap = plt.get_cmap('viridis')
-    cmap.set_bad('red')
-
-    std = np.ravel(data).std()
-    mean = np.ravel(data).std()
-    vmin = mean - sigma * std
-    vmax = mean + sigma * std
 
     if n_points is not None:
         timespan = data.index[-1] - data.index[0]
-        minutes = max([1, int((timespan.seconds / 60) / n_points)])
+        minutes = max([1, int((timespan.total_seconds() / 60) / n_points)])
         downsampled = data.resample('{}T'.format(minutes)).mean()
     else:
         downsampled = data
@@ -265,7 +256,6 @@ def timeseries_heatmap(data, ax, n_points=1200, sigma=6, **kwargs):
     mask = np.ma.masked_where(np.isnan(downsampled), downsampled)
     y = np.arange(0, data.shape[1])
     index = dates.date2num(downsampled.index.to_pydatetime())
-    heatmap = ax.pcolormesh(index, y, mask.T, cmap=cmap, vmin=vmin, vmax=vmax,
-                            **kwargs)
+    heatmap = ax.pcolormesh(index, y, mask.T, **kwargs)
     ax.set_ylim([y[0], y[-1]])
     return heatmap
