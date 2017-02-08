@@ -119,6 +119,48 @@ def rolling_statistics(df, points, label, columns=None):
     return pd.concat((mean, std), axis=1)
 
 
+def next_step_split(data, look_back=1):
+    """ Split data into X and Y where X is `look_back` number of
+    data-points and Y are the points coming directly after the corresponding
+    points in X.
+
+    Parameters
+    ----------
+    data : array
+        Data to split.
+    look_back : int
+        Number of steps to look back at.
+
+    Returns
+    -------
+    X, Y : array
+        X and Y from `data`
+    """
+    X, Y = [], []
+    for i in range(len(data)-look_back-1):
+        slice = data[i:(i+look_back)]
+        X.append(slice)
+        Y.append(data[i + look_back])
+
+    return np.squeeze(X), np.squeeze(Y)
+
+
+def timestep_reshape(data):
+    """ Reshape data into (`n_rows`, `timesteps`, `n_columns`).
+
+    Parameters
+    ----------
+    data : array_like
+        Data to reshape.
+
+    Returns
+    -------
+    array
+        Reshaped `data`.
+    """
+    return np.reshape(data, (data.shape[0], 1, data.shape[1]))
+
+
 def _partial_w_name(func, *args, funcname=None, **kwargs):
     """
 
