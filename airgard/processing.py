@@ -95,7 +95,8 @@ def process_airgard_df(df, start_day, spectral_transform=None,
     return processed_df
 
 
-def fit_and_plot(data, sample_end, n_components=5, verbose=True, copy=True):
+def fit_and_plot(data, sample_end, n_components=5, only_mahal=False,
+                 verbose=True, copy=True, **kwargs):
     """ Fit an n-component PCA-model of subset of processed
      Airgard-data and plot control charts.
 
@@ -142,11 +143,13 @@ def fit_and_plot(data, sample_end, n_components=5, verbose=True, copy=True):
     rss = index.join(rss)
 
     print('Plot results.')
-    f, axes = plt.subplots(n_components + 1, 1, sharex=True, figsize=(10, 12))
+    n_plots = (n_components if not only_mahal else 0) + 2
+    f, axes = plt.subplots(n_plots, 1, sharex=True, figsize=(10, 2 * n_plots))
     times = dates.date2num(index.index.to_pydatetime())
 
     plotting.plot_pca_controll_charts(pca, scores, rss, times,
-                                      axes=axes, sigma=6)
+                                      only_mahal=only_mahal,
+                                      axes=axes, sigma=6, **kwargs)
 
     for ax in axes:
         ax.axvline(times[len(subsample)], linestyle=':', color=(.2, .2, .2))
