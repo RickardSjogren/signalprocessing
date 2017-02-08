@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib import dates, pyplot
+from sklearn.covariance import MinCovDet
+from matplotlib import dates
 from matplotlib import colorbar
 from matplotlib import colors
 from matplotlib import gridspec
@@ -94,8 +95,9 @@ def make_ax_timespan(ax, datetimes, resolution=None):
     return times
 
 
-def plot_pca_controll_charts(pca, scores, residuals, x_index=None, axes=None,
-                             figsize=None, dpi=600, **kwargs):
+def plot_pca_controll_charts(pca, scores, residuals, x_index=None,
+                             only_mahal=False, axes=None, figsize=None,
+                             dpi=600, **kwargs):
     """ Plot PCA-controll charts of fitted PCA-model.
 
     Parameters
@@ -109,6 +111,8 @@ def plot_pca_controll_charts(pca, scores, residuals, x_index=None, axes=None,
         residuals will be calulcated from data.
     x_index : array
         If provided, `x_index` is used as x-axis index for all plots.
+    only_mahal : bool
+        If True, don't plot the individual scores vectors.
     axes : list[matplotlib.pyplot.Axes], optional
         Sequence of axis-object to plot at.
     figsize : tuple[float, float], optional
@@ -119,20 +123,31 @@ def plot_pca_controll_charts(pca, scores, residuals, x_index=None, axes=None,
     matplotlib.pyplot.Figure
     numpy.ndarray[matplotlib.pyplot.Axes]
     """
+    pca_ = pca.named_steps['pca']
     if axes is None:
-        f, axes = plt.subplots(pca.named_steps['pca'].n_components + 1, 1,
+        n_comp = (pca_.n_components if not only_mahal else 0) + 2
+        f, axes = plt.subplots(n_comp, 1,
                                sharex=True, figsize=figsize, dpi=dpi)
     else:
         f = axes[0].figure
 
-    for i, (ax, score, m_score) in enumerate(zip(axes,
-                                                 iter_cols(scores),
-                                                 iter_cols(pca.fitted_scores)),
-                                             start=1):
-        r2 = pca.named_steps['pca'].explained_variance_ratio_[i - 1]
-        title = 'Component {} ({:.2f} %)'.format(i, r2 * 100)
-        plot_1d_control_chart(score, m_score, x_index,
-                              ax=ax, title=title, **kwargs)
+    if not only_mahal:
+        for i, (ax, score, m_score) in enumerate(zip(axes,
+                                                     iter_cols(scores),
+                                                     iter_cols(pca.fitted_scores)),
+                                                 start=1):
+            r2 = pca_.explained_variance_ratio_[i - 1]
+            title = 'Component {} ({:.2f} %)'.format(i, r2 * 100)
+            plot_1d_control_chart(score, m_score, x_index,
+                                  ax=ax, title=title, **kwargs)
+
+    # Plot Mahalanobis distance.
+    cov = MinCovDet().fit(pca.fitted_scores)
+    control_mahal = cov.mahalanobis(pca.fitted_scores)
+    mahal = cov.mahalanobis(scores)
+    plot_1d_control_chart(mahal, control_mahal, x_index, ax=axes[-2],
+                          negative=False, title='Mahalanobis distance',
+                          **kwargs)
 
     # Plot residuals.
     if residuals is not None:
